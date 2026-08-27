@@ -25,6 +25,12 @@ import {
   ListChecks,
   Square,
   CheckSquare,
+  Sailboat,
+  FileText,
+  Upload,
+  MessageCircleQuestion,
+  User,
+  Anchor,
 } from "lucide-react";
 import { db, storage } from "./firebase";
 import {
@@ -37,8 +43,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 /* ---------------------------------------------------------------
-   Palette & type system — carta nautica: navy profondo, ottone,
-   verde vela, rosso segnale pericolo, carta pergamena invecchiata.
+   Palette & type system
 --------------------------------------------------------------- */
 const COLORS = {
   navy: "#16324A",
@@ -50,6 +55,29 @@ const COLORS = {
   brass: "#B8863E",
   brassSoft: "#D9B876",
   line: "#D8CBA8",
+};
+
+const S = {
+  input: {
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 13.5,
+    background: "#fff",
+    border: `1px solid ${COLORS.line}`,
+    borderRadius: 4,
+    padding: "8px 10px",
+    color: COLORS.ink,
+    width: "100%",
+  },
+  label: {
+    fontFamily: "'Inter', sans-serif",
+    fontSize: 11.5,
+    fontWeight: 700,
+    color: COLORS.inkSoft,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    marginBottom: 5,
+    display: "block",
+  },
 };
 
 const CATEGORIES = [
@@ -71,6 +99,31 @@ const PRIORITIES = [
   { id: "bassa", label: "Priorità bassa", color: "#7A8580" },
 ];
 
+const MANUAL_CATEGORIES = [
+  { id: "manuale", label: "Manuale barca" },
+  { id: "elettrico", label: "Schema elettrico" },
+  { id: "idraulico", label: "Schema idraulico" },
+  { id: "altro", label: "Altro documento" },
+];
+
+const DEFAULT_PROFILES = [
+  { id: "p1", name: "Membro 1", color: "#B8863E" },
+  { id: "p2", name: "Membro 2", color: "#3F6B8C" },
+  { id: "p3", name: "Membro 3", color: "#5B7B54" },
+  { id: "p4", name: "Membro 4", color: "#C1483A" },
+];
+
+// Punti dello schema barca (vista dall'alto) dove si agganciano cime e catena.
+const MARKERS = [
+  { id: "ancora", label: "Catena / cima ancora", x: 150, y: 20 },
+  { id: "prua", label: "Cima di prua", x: 150, y: 55 },
+  { id: "traverso_sx", label: "Traverso sinistra", x: 62, y: 250 },
+  { id: "traverso_dx", label: "Traverso dritta", x: 238, y: 250 },
+  { id: "spring_sx", label: "Spring sinistra", x: 100, y: 375 },
+  { id: "spring_dx", label: "Spring dritta", x: 200, y: 375 },
+  { id: "poppa", label: "Cima di poppa", x: 150, y: 465 },
+];
+
 const GIORNI = ["L", "M", "M", "G", "V", "S", "D"];
 const GIORNI_LUNGHI = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 const MESI = [
@@ -86,11 +139,10 @@ const toISO = (d) => {
 const todayISO = () => toISO(new Date());
 const humanDate = (iso) => {
   const d = new Date(iso + "T00:00:00");
-  const dow = (d.getDay() + 6) % 7; // Monday = 0
+  const dow = (d.getDay() + 6) % 7;
   return `${GIORNI_LUNGHI[dow]} ${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-// Ridimensiona un'immagine in un Blob JPEG leggero, pronto per l'upload.
 function resizeToBlob(file, maxWidth = 1000, quality = 0.7) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -117,7 +169,6 @@ function resizeToBlob(file, maxWidth = 1000, quality = 0.7) {
   });
 }
 
-// Carica una foto su Firebase Storage e restituisce { url, path }.
 async function uploadPhoto(file) {
   const blob = await resizeToBlob(file);
   const path = `photos/${uid()}.jpg`;
@@ -158,8 +209,20 @@ function Pennant({ cat, size = "sm", active, onClick }) {
   );
 }
 
+function AuthorTag({ name }) {
+  if (!name) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.inkSoft, opacity: 0.85 }}
+    >
+      <User size={10} /> {name}
+    </span>
+  );
+}
+
 /* ---------------------------------------------------------------
-   Entry card (log view) — "linea di cima" con medaglioni data
+   Entry card (log view)
 --------------------------------------------------------------- */
 function EntryCard({ entry, onEdit }) {
   const cat = catMap[entry.category] || CATEGORIES[8];
@@ -170,13 +233,7 @@ function EntryCard({ entry, onEdit }) {
       <div className="flex flex-col items-center flex-shrink-0" style={{ width: 46 }}>
         <div
           className="flex flex-col items-center justify-center rounded-full flex-shrink-0"
-          style={{
-            width: 46,
-            height: 46,
-            background: COLORS.navy,
-            border: `2px solid ${cat.color}`,
-            color: COLORS.parchment,
-          }}
+          style={{ width: 46, height: 46, background: COLORS.navy, border: `2px solid ${cat.color}`, color: COLORS.parchment }}
         >
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, lineHeight: 1, fontWeight: 700 }}>
             {String(d.getDate()).padStart(2, "0")}
@@ -191,32 +248,16 @@ function EntryCard({ entry, onEdit }) {
       <button
         onClick={() => onEdit(entry)}
         className="flex-1 text-left rounded-sm p-4 min-w-0"
-        style={{
-          background: COLORS.parchmentCard,
-          border: `1px solid ${COLORS.line}`,
-          boxShadow: "0 1px 2px rgba(22,50,74,0.06)",
-        }}
+        style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, boxShadow: "0 1px 2px rgba(22,50,74,0.06)" }}
       >
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <Icon size={15} style={{ color: cat.color, flexShrink: 0 }} strokeWidth={2.25} />
-            <h3
-              className="truncate"
-              style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.ink }}
-            >
+            <h3 className="truncate" style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.ink }}>
               {entry.title || cat.label}
             </h3>
           </div>
-          <span
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 11,
-              fontWeight: 600,
-              color: cat.color,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-            }}
-          >
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 600, color: cat.color, textTransform: "uppercase", letterSpacing: "0.03em" }}>
             {cat.label}
           </span>
         </div>
@@ -224,17 +265,7 @@ function EntryCard({ entry, onEdit }) {
         {entry.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {entry.tags.map((t) => (
-              <span
-                key={t}
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 10.5,
-                  padding: "1.5px 6px",
-                  borderRadius: 3,
-                  background: "rgba(22,50,74,0.06)",
-                  color: COLORS.inkSoft,
-                }}
-              >
+              <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "1.5px 6px", borderRadius: 3, background: "rgba(22,50,74,0.06)", color: COLORS.inkSoft }}>
                 {t}
               </span>
             ))}
@@ -242,10 +273,7 @@ function EntryCard({ entry, onEdit }) {
         )}
 
         {entry.text && (
-          <p
-            className="mt-2 line-clamp-3"
-            style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.inkSoft, lineHeight: 1.5 }}
-          >
+          <p className="mt-2 line-clamp-3" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.inkSoft, lineHeight: 1.5 }}>
             {entry.text}
           </p>
         )}
@@ -253,22 +281,19 @@ function EntryCard({ entry, onEdit }) {
         {entry.photos?.length > 0 && (
           <div className="flex gap-2 mt-3">
             {entry.photos.slice(0, 4).map((p, i) => (
-              <img
-                key={i}
-                src={p.url}
-                alt=""
-                className="rounded-sm object-cover flex-shrink-0"
-                style={{ width: 52, height: 52, border: `1px solid ${COLORS.line}` }}
-              />
+              <img key={i} src={p.url} alt="" className="rounded-sm object-cover flex-shrink-0" style={{ width: 52, height: 52, border: `1px solid ${COLORS.line}` }} />
             ))}
             {entry.photos.length > 4 && (
-              <div
-                className="flex items-center justify-center rounded-sm flex-shrink-0"
-                style={{ width: 52, height: 52, background: "rgba(22,50,74,0.08)", color: COLORS.inkSoft, fontSize: 12, fontFamily: "'Inter', sans-serif" }}
-              >
+              <div className="flex items-center justify-center rounded-sm flex-shrink-0" style={{ width: 52, height: 52, background: "rgba(22,50,74,0.08)", color: COLORS.inkSoft, fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
                 +{entry.photos.length - 4}
               </div>
             )}
+          </div>
+        )}
+
+        {entry.author && (
+          <div className="mt-2">
+            <AuthorTag name={entry.author} />
           </div>
         )}
       </button>
@@ -283,14 +308,12 @@ function CalendarView({ month, setMonth, entries, onSelectDay, selectedISO }) {
   const year = month.getFullYear();
   const mIdx = month.getMonth();
   const firstOfMonth = new Date(year, mIdx, 1);
-  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
+  const startOffset = (firstOfMonth.getDay() + 6) % 7;
   const daysInMonth = new Date(year, mIdx + 1, 0).getDate();
 
   const entriesByDay = useMemo(() => {
     const map = {};
-    for (const e of entries) {
-      (map[e.date] ||= []).push(e);
-    }
+    for (const e of entries) (map[e.date] ||= []).push(e);
     return map;
   }, [entries]);
 
@@ -301,34 +324,20 @@ function CalendarView({ month, setMonth, entries, onSelectDay, selectedISO }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => setMonth(new Date(year, mIdx - 1, 1))}
-          className="p-2 rounded-full hover:bg-black/5"
-          style={{ color: COLORS.navy }}
-          aria-label="Mese precedente"
-        >
+        <button onClick={() => setMonth(new Date(year, mIdx - 1, 1))} className="p-2 rounded-full hover:bg-black/5" style={{ color: COLORS.navy }} aria-label="Mese precedente">
           <ChevronLeft size={18} />
         </button>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600, color: COLORS.navy }}>
           {MESI[mIdx]} <span style={{ opacity: 0.55 }}>{year}</span>
         </h2>
-        <button
-          onClick={() => setMonth(new Date(year, mIdx + 1, 1))}
-          className="p-2 rounded-full hover:bg-black/5"
-          style={{ color: COLORS.navy }}
-          aria-label="Mese successivo"
-        >
+        <button onClick={() => setMonth(new Date(year, mIdx + 1, 1))} className="p-2 rounded-full hover:bg-black/5" style={{ color: COLORS.navy }} aria-label="Mese successivo">
           <ChevronRight size={18} />
         </button>
       </div>
 
       <div className="grid grid-cols-7 mb-1">
         {GIORNI.map((g, i) => (
-          <div
-            key={i}
-            className="text-center"
-            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: COLORS.inkSoft, padding: "4px 0" }}
-          >
+          <div key={i} className="text-center" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: COLORS.inkSoft, padding: "4px 0" }}>
             {g}
           </div>
         ))}
@@ -355,33 +364,13 @@ function CalendarView({ month, setMonth, entries, onSelectDay, selectedISO }) {
                 outlineOffset: -1,
               }}
             >
-              <span
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 12,
-                  fontWeight: isToday ? 700 : 500,
-                  color: COLORS.ink,
-                }}
-              >
-                {d}
-              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: isToday ? 700 : 500, color: COLORS.ink }}>{d}</span>
               <div className="flex gap-0.5 flex-wrap mt-auto pt-1">
                 {cats.map((c) => (
-                  <span
-                    key={c}
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: catMap[c]?.color || COLORS.navy,
-                      display: "inline-block",
-                    }}
-                  />
+                  <span key={c} style={{ width: 6, height: 6, borderRadius: "50%", background: catMap[c]?.color || COLORS.navy, display: "inline-block" }} />
                 ))}
                 {dayEntries.length > 4 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: COLORS.inkSoft }}>
-                    +{dayEntries.length - 4}
-                  </span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, color: COLORS.inkSoft }}>+{dayEntries.length - 4}</span>
                 )}
               </div>
             </button>
@@ -393,25 +382,21 @@ function CalendarView({ month, setMonth, entries, onSelectDay, selectedISO }) {
 }
 
 /* ---------------------------------------------------------------
-   Day panel — entries for the selected day
+   Day panel
 --------------------------------------------------------------- */
 function DayPanel({ iso, entries, onNew, onEdit, onClose }) {
   const dayEntries = entries.filter((e) => e.date === iso).sort((a, b) => (a.createdAt > b.createdAt ? 1 : -1));
   return (
     <div className="mt-5 rounded-sm p-4" style={{ background: "rgba(22,50,74,0.04)", border: `1px solid ${COLORS.line}` }}>
       <div className="flex items-center justify-between mb-3">
-        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, color: COLORS.navy, textTransform: "capitalize" }}>
-          {humanDate(iso)}
-        </h3>
+        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, color: COLORS.navy, textTransform: "capitalize" }}>{humanDate(iso)}</h3>
         <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5" style={{ color: COLORS.inkSoft }}>
           <X size={16} />
         </button>
       </div>
 
       {dayEntries.length === 0 && (
-        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.inkSoft }}>
-          Nessuna voce in questa data. Aggiungi la prima annotazione della giornata.
-        </p>
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.inkSoft }}>Nessuna voce in questa data. Aggiungi la prima annotazione della giornata.</p>
       )}
 
       <div className="flex flex-col gap-2">
@@ -419,12 +404,7 @@ function DayPanel({ iso, entries, onNew, onEdit, onClose }) {
           const cat = catMap[e.category] || CATEGORIES[8];
           const Icon = cat.icon;
           return (
-            <button
-              key={e.id}
-              onClick={() => onEdit(e)}
-              className="flex items-center gap-2 text-left rounded-sm px-3 py-2"
-              style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}
-            >
+            <button key={e.id} onClick={() => onEdit(e)} className="flex items-center gap-2 text-left rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
               <Icon size={14} style={{ color: cat.color, flexShrink: 0 }} />
               <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink, fontWeight: 600 }} className="truncate">
                 {e.title || cat.label}
@@ -434,11 +414,7 @@ function DayPanel({ iso, entries, onNew, onEdit, onClose }) {
         })}
       </div>
 
-      <button
-        onClick={() => onNew(iso)}
-        className="mt-3 flex items-center gap-1.5 text-sm font-semibold"
-        style={{ color: COLORS.brass, fontFamily: "'Inter', sans-serif" }}
-      >
+      <button onClick={() => onNew(iso)} className="mt-3 flex items-center gap-1.5 text-sm font-semibold" style={{ color: COLORS.brass, fontFamily: "'Inter', sans-serif" }}>
         <Plus size={15} /> Nuova voce per questo giorno
       </button>
     </div>
@@ -454,7 +430,7 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
   const [category, setCategory] = useState(initial?.category || CATEGORIES[0].id);
   const [tagsText, setTagsText] = useState((initial?.tags || []).join(", "));
   const [text, setText] = useState(initial?.text || "");
-  const [photos, setPhotos] = useState(initial?.photos || []); // [{url, path}]
+  const [photos, setPhotos] = useState(initial?.photos || []);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
@@ -482,10 +458,7 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
   const save = async () => {
     if (!date || saving) return;
     setSaving(true);
-    const tags = tagsText
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const tags = tagsText.split(",").map((t) => t.trim()).filter(Boolean);
     await onSave({
       id: initial?.id || uid(),
       date,
@@ -494,170 +467,83 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
       tags,
       text: text.trim(),
       photos,
+      author: initial?.author,
       createdAt: initial?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
     setSaving(false);
   };
 
-  const inputStyle = {
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 14,
-    background: "#fff",
-    border: `1px solid ${COLORS.line}`,
-    borderRadius: 4,
-    padding: "8px 10px",
-    color: COLORS.ink,
-    width: "100%",
-  };
-  const labelStyle = {
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 11.5,
-    fontWeight: 700,
-    color: COLORS.inkSoft,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    marginBottom: 5,
-    display: "block",
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: "rgba(15,36,54,0.55)" }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-lg sm:rounded-lg"
-        style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}
-      >
-        <div
-          className="flex items-center justify-between px-5 py-4 sticky top-0"
-          style={{ background: COLORS.navy, color: COLORS.parchment }}
-        >
-          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600 }}>
-            {initial?.id ? "Modifica voce" : "Nuova voce di diario"}
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(15,36,54,0.55)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-lg sm:rounded-lg" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+        <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ background: COLORS.navy, color: COLORS.parchment }}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600 }}>{initial?.id ? "Modifica voce" : "Nuova voce di diario"}</h2>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-white/10">
             <X size={18} />
           </button>
         </div>
 
         <div className="p-5 flex flex-col gap-4">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label style={labelStyle}>Data</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-
           <div>
-            <label style={labelStyle}>Titolo</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Es. Sostituito strallo di prua"
-              style={inputStyle}
-            />
+            <label style={S.label}>Data</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={S.input} />
           </div>
-
           <div>
-            <label style={labelStyle}>Categoria</label>
+            <label style={S.label}>Titolo</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Sostituito strallo di prua" style={S.input} />
+          </div>
+          <div>
+            <label style={S.label}>Categoria</label>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORIES.map((c) => (
                 <Pennant key={c.id} cat={c} active={category === c.id} onClick={() => setCategory(c.id)} />
               ))}
             </div>
           </div>
-
           <div>
-            <label style={labelStyle}>Componenti / tag (separati da virgola)</label>
-            <input
-              type="text"
-              value={tagsText}
-              onChange={(e) => setTagsText(e.target.value)}
-              placeholder="Es. stralli, vele, parabordi"
-              style={inputStyle}
-            />
+            <label style={S.label}>Componenti / tag (separati da virgola)</label>
+            <input type="text" value={tagsText} onChange={(e) => setTagsText(e.target.value)} placeholder="Es. stralli, vele, parabordi" style={S.input} />
           </div>
-
           <div>
-            <label style={labelStyle}>Annotazioni</label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={5}
-              placeholder="Descrivi cosa è successo, cosa è stato fatto, ricambi usati…"
-              style={{ ...inputStyle, resize: "vertical" }}
-            />
+            <label style={S.label}>Annotazioni</label>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="Descrivi cosa è successo, cosa è stato fatto, ricambi usati…" style={{ ...S.input, resize: "vertical" }} />
           </div>
-
           <div>
-            <label style={labelStyle}>Foto ({photos.length}/6)</label>
+            <label style={S.label}>Foto ({photos.length}/6)</label>
             <div className="flex flex-wrap gap-2">
               {photos.map((p, i) => (
                 <div key={p.path || i} className="relative">
                   <img src={p.url} alt="" className="rounded-sm object-cover" style={{ width: 64, height: 64, border: `1px solid ${COLORS.line}` }} />
-                  <button
-                    onClick={() => removePhoto(i)}
-                    className="absolute -top-1.5 -right-1.5 rounded-full flex items-center justify-center"
-                    style={{ width: 18, height: 18, background: COLORS.navy, color: "#fff" }}
-                  >
+                  <button onClick={() => removePhoto(i)} className="absolute -top-1.5 -right-1.5 rounded-full flex items-center justify-center" style={{ width: 18, height: 18, background: COLORS.navy, color: "#fff" }}>
                     <X size={11} />
                   </button>
                 </div>
               ))}
               {photos.length < 6 && (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="flex flex-col items-center justify-center rounded-sm gap-1"
-                  style={{ width: 64, height: 64, border: `1px dashed ${COLORS.brass}`, color: COLORS.brass, background: "rgba(184,134,62,0.06)" }}
-                >
+                <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex flex-col items-center justify-center rounded-sm gap-1" style={{ width: 64, height: 64, border: `1px dashed ${COLORS.brass}`, color: COLORS.brass, background: "rgba(184,134,62,0.06)" }}>
                   {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={17} />}
                   <span style={{ fontSize: 9.5, fontFamily: "'Inter', sans-serif" }}>{uploading ? "…" : "Aggiungi"}</span>
                 </button>
               )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => e.target.files && handleFiles(e.target.files)}
-              />
+              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
           {initial?.id ? (
-            <button
-              onClick={() => onDelete(initial.id)}
-              className="flex items-center gap-1.5 text-sm font-semibold"
-              style={{ color: "#C1483A", fontFamily: "'Inter', sans-serif" }}
-            >
+            <button onClick={() => onDelete(initial.id)} className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#C1483A", fontFamily: "'Inter', sans-serif" }}>
               <Trash2 size={15} /> Elimina
             </button>
           ) : (
             <span />
           )}
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded text-sm font-semibold"
-              style={{ fontFamily: "'Inter', sans-serif", color: COLORS.inkSoft, background: "transparent" }}
-            >
+            <button onClick={onClose} className="px-4 py-2 rounded text-sm font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: COLORS.inkSoft, background: "transparent" }}>
               Annulla
             </button>
-            <button
-              onClick={save}
-              disabled={saving || uploading}
-              className="px-4 py-2 rounded text-sm font-semibold"
-              style={{ fontFamily: "'Inter', sans-serif", color: "#fff", background: COLORS.brass, opacity: saving ? 0.7 : 1 }}
-            >
+            <button onClick={save} disabled={saving || uploading} className="px-4 py-2 rounded text-sm font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: "#fff", background: COLORS.brass, opacity: saving ? 0.7 : 1 }}>
               {saving ? "Salvo…" : "Salva"}
             </button>
           </div>
@@ -668,9 +554,9 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
 }
 
 /* ---------------------------------------------------------------
-   Lista annuale — cose da fare, ordinate per priorità
+   Lista (annuale / stagione successiva) — riusabile
 --------------------------------------------------------------- */
-function TaskList({ tasks, onAdd, onToggle, onDelete }) {
+function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
   const [text, setText] = useState("");
   const [priority, setPriority] = useState("alta");
 
@@ -686,52 +572,19 @@ function TaskList({ tasks, onAdd, onToggle, onDelete }) {
     items: tasks.filter((t) => t.priority === p.id).sort((a, b) => (a.done === b.done ? (a.createdAt > b.createdAt ? 1 : -1) : a.done ? 1 : -1)),
   }));
 
-  const inputStyle = {
-    fontFamily: "'Inter', sans-serif",
-    fontSize: 13.5,
-    background: "#fff",
-    border: `1px solid ${COLORS.line}`,
-    borderRadius: 4,
-    padding: "8px 10px",
-    color: COLORS.ink,
-  };
-
   return (
     <div>
       <div className="rounded-sm p-4 mb-6" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
-        <label
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 11.5,
-            fontWeight: 700,
-            color: COLORS.inkSoft,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            marginBottom: 8,
-            display: "block",
-          }}
-        >
-          Aggiungi cosa da fare per l'anno
-        </label>
+        <label style={S.label}>Aggiungi cosa da fare</label>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-            placeholder="Es. Revisione motore, cambio zinchi…"
-            style={{ ...inputStyle, flex: 1 }}
-          />
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder={placeholder} style={{ ...S.input, flex: 1 }} />
           <div className="flex gap-1.5">
             {PRIORITIES.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setPriority(p.id)}
                 style={{
-                  fontFamily: "'Inter', sans-serif",
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  padding: "6px 10px",
-                  borderRadius: 4,
+                  fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, padding: "6px 10px", borderRadius: 4,
                   border: `1px solid ${priority === p.id ? p.color : COLORS.line}`,
                   background: priority === p.id ? p.color : "transparent",
                   color: priority === p.id ? "#fff" : COLORS.inkSoft,
@@ -741,12 +594,7 @@ function TaskList({ tasks, onAdd, onToggle, onDelete }) {
                 {p.label.replace("Priorità ", "")}
               </button>
             ))}
-            <button
-              onClick={add}
-              className="flex items-center justify-center rounded-sm px-3"
-              style={{ background: COLORS.brass, color: "#fff" }}
-              aria-label="Aggiungi"
-            >
+            <button onClick={add} className="flex items-center justify-center rounded-sm px-3" style={{ background: COLORS.brass, color: "#fff" }} aria-label="Aggiungi">
               <Plus size={16} />
             </button>
           </div>
@@ -756,9 +604,7 @@ function TaskList({ tasks, onAdd, onToggle, onDelete }) {
       {tasks.length === 0 && (
         <div className="flex flex-col items-center text-center gap-2 py-16" style={{ color: COLORS.inkSoft }}>
           <ListChecks size={26} style={{ opacity: 0.5 }} />
-          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>
-            Nessuna voce in lista. Aggiungi le cose da fare quest'anno, dalle più importanti alle meno urgenti.
-          </p>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>Nessuna voce in lista. Aggiungi le cose da fare, dalle più importanti alle meno urgenti.</p>
         </div>
       )}
 
@@ -768,45 +614,22 @@ function TaskList({ tasks, onAdd, onToggle, onDelete }) {
             <div key={prio.id} className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: prio.color, display: "inline-block" }} />
-                <h3
-                  style={{
-                    fontFamily: "'Inter', sans-serif",
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    color: prio.color,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
+                <h3 style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 700, color: prio.color, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {prio.label} · {items.filter((t) => !t.done).length} da fare
                 </h3>
               </div>
               <div className="flex flex-col gap-1.5">
                 {items.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center gap-2.5 rounded-sm px-3 py-2.5"
-                    style={{
-                      background: COLORS.parchmentCard,
-                      border: `1px solid ${COLORS.line}`,
-                      borderLeft: `3px solid ${prio.color}`,
-                      opacity: t.done ? 0.55 : 1,
-                    }}
-                  >
+                  <div key={t.id} className="flex items-center gap-2.5 rounded-sm px-3 py-2.5" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, borderLeft: `3px solid ${prio.color}`, opacity: t.done ? 0.55 : 1 }}>
                     <button onClick={() => onToggle(t.id)} className="flex-shrink-0" style={{ color: t.done ? prio.color : COLORS.inkSoft }} aria-label="Segna come fatto">
                       {t.done ? <CheckSquare size={18} /> : <Square size={18} />}
                     </button>
-                    <span
-                      className="flex-1 truncate"
-                      style={{
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 14,
-                        color: COLORS.ink,
-                        textDecoration: t.done ? "line-through" : "none",
-                      }}
-                    >
-                      {t.text}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="block truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.ink, textDecoration: t.done ? "line-through" : "none" }}>
+                        {t.text}
+                      </span>
+                      {t.author && <AuthorTag name={t.author} />}
+                    </div>
                     <button onClick={() => onDelete(t.id)} className="flex-shrink-0 p-1" style={{ color: COLORS.inkSoft }} aria-label="Elimina">
                       <X size={14} />
                     </button>
@@ -821,16 +644,320 @@ function TaskList({ tasks, onAdd, onToggle, onDelete }) {
 }
 
 /* ---------------------------------------------------------------
+   Cime e catena — schema barca con marker interattivi
+--------------------------------------------------------------- */
+function RiggingCard({ marker, item, selected, onSave }) {
+  const [label, setLabel] = useState(item?.label ?? marker.label);
+  const [length, setLength] = useState(item?.length ?? "");
+  const [diameter, setDiameter] = useState(item?.diameter ?? "");
+  const [material, setMaterial] = useState(item?.material ?? "");
+  const [weight, setWeight] = useState(item?.weight ?? "");
+  const [notes, setNotes] = useState(item?.notes ?? "");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (selected && ref.current) ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [selected]);
+
+  const save = () => onSave({ id: marker.id, markerId: marker.id, label, length, diameter, material, weight, notes });
+
+  return (
+    <div ref={ref} className="rounded-sm p-3" style={{ background: COLORS.parchmentCard, border: `1px solid ${selected ? COLORS.brass : COLORS.line}`, borderWidth: selected ? 2 : 1 }}>
+      <input value={label} onChange={(e) => setLabel(e.target.value)} onBlur={save} style={{ ...S.input, fontWeight: 600, marginBottom: 6 }} />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label style={{ ...S.label, marginBottom: 2 }}>Lunghezza (m)</label>
+          <input value={length} onChange={(e) => setLength(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
+        </div>
+        <div>
+          <label style={{ ...S.label, marginBottom: 2 }}>Diametro (mm)</label>
+          <input value={diameter} onChange={(e) => setDiameter(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
+        </div>
+        <div>
+          <label style={{ ...S.label, marginBottom: 2 }}>Materiale</label>
+          <input value={material} onChange={(e) => setMaterial(e.target.value)} onBlur={save} style={S.input} placeholder="Es. dyneema, catena calibrata" />
+        </div>
+        <div>
+          <label style={{ ...S.label, marginBottom: 2 }}>Peso (kg, se catena)</label>
+          <input value={weight} onChange={(e) => setWeight(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
+        </div>
+      </div>
+      <label style={{ ...S.label, marginTop: 6, marginBottom: 2 }}>Note</label>
+      <input value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={save} style={S.input} />
+    </div>
+  );
+}
+
+function RiggingDiagram({ selected, onSelect }) {
+  return (
+    <svg viewBox="0 0 300 490" style={{ width: "100%", maxWidth: 220, margin: "0 auto", display: "block" }}>
+      <path
+        d="M150,8 C205,8 248,95 252,185 L252,335 C252,415 210,468 150,486 C90,468 48,415 48,335 L48,185 C52,95 95,8 150,8 Z"
+        fill={COLORS.parchmentCard}
+        stroke={COLORS.navy}
+        strokeWidth="2"
+      />
+      <line x1="150" y1="55" x2="150" y2="460" stroke={COLORS.line} strokeWidth="1" strokeDasharray="4 4" />
+      <defs>
+        <marker id="rigArrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill={COLORS.brass} />
+        </marker>
+      </defs>
+      {MARKERS.map((m) => {
+        const isSel = selected === m.id;
+        const leftSide = m.x < 150;
+        return (
+          <g key={m.id} onClick={() => onSelect(m.id)} style={{ cursor: "pointer" }}>
+            {isSel && (
+              <line x1={m.x} y1={m.y} x2={m.x + (leftSide ? -34 : 34)} y2={m.y - 18} stroke={COLORS.brass} strokeWidth="1.5" markerEnd="url(#rigArrow)" />
+            )}
+            <circle cx={m.x} cy={m.y} r={isSel ? 9 : 6} fill={isSel ? COLORS.brass : COLORS.navy} stroke="#fff" strokeWidth="1.5" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
+  const [selected, setSelected] = useState(null);
+  const [extraText, setExtraText] = useState("");
+  const extras = items.filter((it) => !it.markerId);
+
+  return (
+    <div>
+      <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.inkSoft, marginBottom: 12 }}>
+        Tocca un punto sullo schema per aprire la scheda di quella cima o della catena.
+      </p>
+      <RiggingDiagram selected={selected} onSelect={(id) => setSelected(id === selected ? null : id)} />
+      <div className="flex flex-col gap-3 mt-5">
+        {MARKERS.map((m) => (
+          <RiggingCard key={m.id} marker={m} item={items.find((it) => it.id === m.id)} selected={selected === m.id} onSave={onSaveItem} />
+        ))}
+      </div>
+
+      <div className="mt-6">
+        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: COLORS.navy, marginBottom: 8 }}>Altri elementi</h3>
+        <div className="flex flex-col gap-1.5 mb-3">
+          {extras.map((it) => (
+            <div key={it.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+              <span className="flex-1 truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink }}>
+                {it.label} {it.length && `· ${it.length} m`} {it.material && `· ${it.material}`}
+              </span>
+              <button onClick={() => onDeleteExtra(it.id)} style={{ color: COLORS.inkSoft }}>
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input value={extraText} onChange={(e) => setExtraText(e.target.value)} placeholder="Es. cima di rimorchio, drizza randa…" style={{ ...S.input, flex: 1 }} />
+          <button
+            onClick={() => {
+              if (!extraText.trim()) return;
+              onAddExtra({ id: uid(), markerId: null, label: extraText.trim(), length: "", diameter: "", material: "", weight: "", notes: "" });
+              setExtraText("");
+            }}
+            className="flex items-center justify-center rounded-sm px-3"
+            style={{ background: COLORS.brass, color: "#fff" }}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Manuali — upload + domande all'AI
+--------------------------------------------------------------- */
+function ManualsView({ manuals, onUpload, onDelete }) {
+  const [category, setCategory] = useState("manuale");
+  const [uploading, setUploading] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [askError, setAskError] = useState("");
+  const fileRef = useRef(null);
+
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try {
+      await onUpload(file, category);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const ask = async () => {
+    const q = question.trim();
+    if (!q || manuals.length === 0 || asking) return;
+    setAsking(true);
+    setAskError("");
+    try {
+      const res = await fetch("/api/ask-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, manuals: manuals.map((m) => ({ name: m.name, url: m.url })) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Errore nella richiesta");
+      setHistory((h) => [{ question: q, answer: data.answer }, ...h]);
+      setQuestion("");
+    } catch (e) {
+      setAskError(e.message || "Non sono riuscito a leggere i manuali. Riprova.");
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="rounded-sm p-4 mb-6" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+        <label style={S.label}>Carica manuale o schema (PDF)</label>
+        <div className="flex flex-wrap gap-2">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...S.input, width: "auto" }}>
+            {MANUAL_CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex items-center gap-1.5 rounded-sm px-3 py-2" style={{ background: COLORS.brass, color: "#fff", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600 }}>
+            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+            {uploading ? "Carico…" : "Scegli file PDF"}
+          </button>
+          <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
+        </div>
+      </div>
+
+      {manuals.length === 0 ? (
+        <div className="flex flex-col items-center text-center gap-2 py-10" style={{ color: COLORS.inkSoft }}>
+          <FileText size={26} style={{ opacity: 0.5 }} />
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>Nessun manuale caricato ancora.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 mb-6">
+          {manuals.map((m) => (
+            <div key={m.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+              <FileText size={15} style={{ color: COLORS.brass, flexShrink: 0 }} />
+              <a href={m.url} target="_blank" rel="noreferrer" className="flex-1 truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink, fontWeight: 600 }}>
+                {m.name}
+              </a>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.inkSoft, textTransform: "uppercase" }}>
+                {MANUAL_CATEGORIES.find((c) => c.id === m.category)?.label || "Documento"}
+              </span>
+              <button onClick={() => onDelete(m)} style={{ color: COLORS.inkSoft }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-sm p-4" style={{ background: "rgba(22,50,74,0.04)", border: `1px solid ${COLORS.line}` }}>
+        <label style={S.label}>Chiedi aiuto sui manuali caricati</label>
+        <div className="flex gap-2">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && ask()}
+            placeholder={manuals.length === 0 ? "Carica prima almeno un manuale…" : "Es. Come faccio a resettare il quadro elettrico?"}
+            disabled={manuals.length === 0}
+            style={{ ...S.input, flex: 1 }}
+          />
+          <button onClick={ask} disabled={asking || manuals.length === 0} className="flex items-center gap-1.5 rounded-sm px-3" style={{ background: COLORS.brass, color: "#fff", opacity: asking ? 0.7 : 1 }}>
+            {asking ? <Loader2 size={16} className="animate-spin" /> : <MessageCircleQuestion size={16} />}
+          </button>
+        </div>
+        {askError && <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#C1483A", marginTop: 6 }}>{askError}</p>}
+
+        <div className="flex flex-col gap-3 mt-4">
+          {history.map((h, i) => (
+            <div key={i} className="rounded-sm p-3" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: COLORS.navy }}>{h.question}</p>
+              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink, marginTop: 4, whiteSpace: "pre-wrap" }}>{h.answer}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Selettore profilo
+--------------------------------------------------------------- */
+function ProfileModal({ profiles, currentId, onChoose, onRename, onClose, canClose }) {
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(15,36,54,0.6)" }} onClick={() => canClose && onClose()}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-sm p-5" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.ink, marginBottom: 4 }}>Chi sei tu?</h3>
+        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 14 }}>
+          Scegli il tuo profilo, così sappiamo chi ha scritto ogni voce. Puoi rinominare i profili toccando la matita.
+        </p>
+        <div className="flex flex-col gap-2">
+          {profiles.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ border: `2px solid ${currentId === p.id ? p.color : COLORS.line}` }}>
+              {editing === p.id ? (
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => {
+                    onRename(p.id, draft.trim() || p.name);
+                    setEditing(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  style={{ ...S.input, flex: 1 }}
+                />
+              ) : (
+                <button onClick={() => onChoose(p.id)} className="flex items-center gap-2 flex-1 text-left">
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: p.color, display: "inline-block" }} />
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.ink }}>{p.name}</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditing(p.id);
+                  setDraft(p.name);
+                }}
+                style={{ color: COLORS.inkSoft }}
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+        {canClose && (
+          <button onClick={onClose} className="mt-4 text-sm font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: COLORS.inkSoft }}>
+            Chiudi
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
    App
 --------------------------------------------------------------- */
 export default function DiarioDiBordo() {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
-  const [settings, setSettings] = useState({ boatName: "Il mio veliero" });
+  const [settings, setSettings] = useState({ boatName: "Il mio veliero", profiles: DEFAULT_PROFILES, boatStatus: "acqua" });
   const [saveError, setSaveError] = useState(false);
   const [tasks, setTasks] = useState([]);
+  const [seasonTasks, setSeasonTasks] = useState([]);
+  const [riggingItems, setRiggingItems] = useState([]);
+  const [manuals, setManuals] = useState([]);
 
   const [view, setView] = useState("calendar");
+  const [taskTab, setTaskTab] = useState("year");
   const [month, setMonth] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -844,34 +971,28 @@ export default function DiarioDiBordo() {
   const [nameDraft, setNameDraft] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [profileId, setProfileId] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem("diario:profileId") : null));
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const pendingDate = useRef(todayISO());
 
-  // Sincronizzazione in tempo reale con Firestore: chiunque apra il sito
-  // vede subito le voci aggiunte da un altro familiare.
+  const profiles = settings.profiles || DEFAULT_PROFILES;
+  const currentProfile = profiles.find((p) => p.id === profileId);
+
   useEffect(() => {
-    const unsubEntries = onSnapshot(
-      collection(db, "entries"),
-      (snap) => {
-        setEntries(snap.docs.map((d) => d.data()));
-        setLoading(false);
-      },
-      (err) => {
-        console.error(err);
-        setLoading(false);
-        setSaveError(true);
-      }
-    );
-    const unsubTasks = onSnapshot(collection(db, "tasks"), (snap) => {
-      setTasks(snap.docs.map((d) => d.data()));
-    });
+    const unsubEntries = onSnapshot(collection(db, "entries"), (snap) => { setEntries(snap.docs.map((d) => d.data())); setLoading(false); }, () => { setLoading(false); setSaveError(true); });
+    const unsubTasks = onSnapshot(collection(db, "tasks"), (snap) => setTasks(snap.docs.map((d) => d.data())));
+    const unsubSeason = onSnapshot(collection(db, "season_tasks"), (snap) => setSeasonTasks(snap.docs.map((d) => d.data())));
+    const unsubManuals = onSnapshot(collection(db, "manuals"), (snap) => setManuals(snap.docs.map((d) => d.data())));
     const unsubSettings = onSnapshot(doc(db, "settings", "config"), (snap) => {
-      setSettings(snap.exists() ? snap.data() : { boatName: "Il mio veliero" });
+      setSettings(snap.exists() ? { boatName: "Il mio veliero", profiles: DEFAULT_PROFILES, boatStatus: "acqua", ...snap.data() } : { boatName: "Il mio veliero", profiles: DEFAULT_PROFILES, boatStatus: "acqua" });
     });
-    return () => {
-      unsubEntries();
-      unsubTasks();
-      unsubSettings();
-    };
+    const unsubRigging = onSnapshot(doc(db, "rigging", "data"), (snap) => setRiggingItems(snap.exists() ? snap.data().items || [] : []));
+    return () => { unsubEntries(); unsubTasks(); unsubSeason(); unsubManuals(); unsubSettings(); unsubRigging(); };
   }, []);
+
+  useEffect(() => {
+    if (!loading && !profileId) setShowProfileModal(true);
+  }, [loading, profileId]);
 
   const persistSettings = useCallback(async (next) => {
     setSettings(next);
@@ -881,6 +1002,17 @@ export default function DiarioDiBordo() {
       setSaveError(true);
     }
   }, []);
+
+  const chooseProfile = (id) => {
+    setProfileId(id);
+    window.localStorage.setItem("diario:profileId", id);
+    setShowProfileModal(false);
+  };
+  const renameProfile = (id, name) => {
+    const next = { ...settings, profiles: profiles.map((p) => (p.id === id ? { ...p, name } : p)) };
+    persistSettings(next);
+  };
+  const toggleBoatStatus = () => persistSettings({ ...settings, boatStatus: settings.boatStatus === "acqua" ? "secca" : "acqua" });
 
   const toggleCat = (id) => {
     setActiveCats((prev) => {
@@ -896,86 +1028,78 @@ export default function DiarioDiBordo() {
     const q = search.trim().toLowerCase();
     return entries
       .filter((e) => activeCats.has(e.category))
-      .filter((e) => {
-        if (!q) return true;
-        return (
-          e.title?.toLowerCase().includes(q) ||
-          e.text?.toLowerCase().includes(q) ||
-          e.tags?.some((t) => t.toLowerCase().includes(q))
-        );
-      })
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.createdAt < b.createdAt ? 1 : -1)));
+      .filter((e) => !q || e.title?.toLowerCase().includes(q) || e.text?.toLowerCase().includes(q) || e.tags?.some((t) => t.toLowerCase().includes(q)))
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
   }, [entries, activeCats, search]);
 
-  const pendingDate = useRef(todayISO());
-  const openEdit = (entry) => {
-    setEditingEntry(entry);
-    setShowForm(true);
-  };
+  const openEdit = (entry) => { setEditingEntry(entry); setShowForm(true); };
+  const openNewAt = (iso) => { pendingDate.current = iso; setEditingEntry(null); setShowForm(true); };
 
   const handleSave = async (entry) => {
-    try {
-      await setDoc(doc(db, "entries", entry.id), entry);
-    } catch (e) {
-      console.error(e);
-      setSaveError(true);
-    }
-    setShowForm(false);
-    setEditingEntry(null);
+    const withAuthor = { ...entry, author: entry.author || currentProfile?.name || null };
+    try { await setDoc(doc(db, "entries", entry.id), withAuthor); } catch (e) { console.error(e); setSaveError(true); }
+    setShowForm(false); setEditingEntry(null);
   };
-
   const handleDelete = async (id) => {
     const entry = entries.find((e) => e.id === id);
     try {
-      if (entry?.photos?.length) {
-        await Promise.all(entry.photos.map((p) => deleteObject(ref(storage, p.path)).catch(() => {})));
-      }
+      if (entry?.photos?.length) await Promise.all(entry.photos.map((p) => deleteObject(ref(storage, p.path)).catch(() => {})));
       await deleteDoc(doc(db, "entries", id));
-    } catch (e) {
-      console.error(e);
-      setSaveError(true);
-    }
-    setShowForm(false);
-    setEditingEntry(null);
+    } catch (e) { console.error(e); setSaveError(true); }
+    setShowForm(false); setEditingEntry(null);
   };
 
-  const handleAddTask = async (task) => {
-    try {
-      await setDoc(doc(db, "tasks", task.id), task);
-    } catch {
-      setSaveError(true);
-    }
+  const makeTaskHandlers = (collectionName, list) => ({
+    onAdd: async (task) => { try { await setDoc(doc(db, collectionName, task.id), { ...task, author: currentProfile?.name || null }); } catch { setSaveError(true); } },
+    onToggle: async (id) => { const t = list.find((x) => x.id === id); if (!t) return; try { await setDoc(doc(db, collectionName, id), { ...t, done: !t.done }); } catch { setSaveError(true); } },
+    onDelete: async (id) => { try { await deleteDoc(doc(db, collectionName, id)); } catch { setSaveError(true); } },
+  });
+  const yearHandlers = makeTaskHandlers("tasks", tasks);
+  const seasonHandlers = makeTaskHandlers("season_tasks", seasonTasks);
+
+  const saveRiggingItem = async (item) => {
+    const next = riggingItems.some((it) => it.id === item.id) ? riggingItems.map((it) => (it.id === item.id ? item : it)) : [...riggingItems, item];
+    try { await setDoc(doc(db, "rigging", "data"), { items: next }); } catch { setSaveError(true); }
   };
-  const handleToggleTask = async (id) => {
-    const t = tasks.find((x) => x.id === id);
-    if (!t) return;
-    try {
-      await setDoc(doc(db, "tasks", id), { ...t, done: !t.done });
-    } catch {
-      setSaveError(true);
-    }
+  const deleteExtraRigging = async (id) => {
+    const next = riggingItems.filter((it) => it.id !== id);
+    try { await setDoc(doc(db, "rigging", "data"), { items: next }); } catch { setSaveError(true); }
   };
-  const handleDeleteTask = async (id) => {
+
+  const uploadManual = async (file, category) => {
+    const path = `manuals/${uid()}.pdf`;
+    const r = ref(storage, path);
+    await uploadBytes(r, file);
+    const url = await getDownloadURL(r);
+    const id = uid();
+    await setDoc(doc(db, "manuals", id), { id, name: file.name, category, url, path, uploadedAt: new Date().toISOString() });
+  };
+  const deleteManual = async (m) => {
     try {
-      await deleteDoc(doc(db, "tasks", id));
-    } catch {
-      setSaveError(true);
-    }
+      await deleteObject(ref(storage, m.path)).catch(() => {});
+      await deleteDoc(doc(db, "manuals", m.id));
+    } catch { setSaveError(true); }
   };
 
   const doReset = async () => {
     try {
-      await Promise.all(
-        entries.flatMap((e) => (e.photos || []).map((p) => deleteObject(ref(storage, p.path)).catch(() => {})))
-      );
+      await Promise.all(entries.flatMap((e) => (e.photos || []).map((p) => deleteObject(ref(storage, p.path)).catch(() => {}))));
       await Promise.all(entries.map((e) => deleteDoc(doc(db, "entries", e.id))));
       await Promise.all(tasks.map((t) => deleteDoc(doc(db, "tasks", t.id))));
-    } catch {
-      setSaveError(true);
-    }
-    setConfirmReset(false);
-    setShowSettingsMenu(false);
+      await Promise.all(seasonTasks.map((t) => deleteDoc(doc(db, "season_tasks", t.id))));
+      await Promise.all(manuals.map((m) => deleteManual(m)));
+      await setDoc(doc(db, "rigging", "data"), { items: [] });
+    } catch { setSaveError(true); }
+    setConfirmReset(false); setShowSettingsMenu(false);
   };
+
+  const TABS = [
+    { id: "calendar", label: "Calendario", icon: CalendarIcon },
+    { id: "list", label: "Registro", icon: ListIcon },
+    { id: "tasks", label: "Lista", icon: ListChecks },
+    { id: "rigging", label: "Cime & catena", icon: Sailboat },
+    { id: "manuals", label: "Manuali", icon: FileText },
+  ];
 
   return (
     <div className="w-full min-h-full" style={{ background: COLORS.parchment }}>
@@ -985,7 +1109,6 @@ export default function DiarioDiBordo() {
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.2); }
       `}</style>
 
-      {/* Header */}
       <div style={{ background: COLORS.navy }} className="px-4 sm:px-6 pt-6 pb-5">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between gap-3">
@@ -999,165 +1122,89 @@ export default function DiarioDiBordo() {
                 <path d="M30 17 L18.5 19.5 L17 17 L18.5 14.5 Z" fill="none" stroke={COLORS.brassSoft} strokeWidth="1" />
               </svg>
               <div className="min-w-0">
-                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.brassSoft, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Diario di bordo
-                </p>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.brassSoft, letterSpacing: "0.08em", textTransform: "uppercase" }}>Diario di bordo</p>
                 {editingName ? (
                   <input
                     autoFocus
                     value={nameDraft}
                     onChange={(e) => setNameDraft(e.target.value)}
-                    onBlur={() => {
-                      persistSettings({ ...settings, boatName: nameDraft.trim() || settings.boatName });
-                      setEditingName(false);
-                    }}
+                    onBlur={() => { persistSettings({ ...settings, boatName: nameDraft.trim() || settings.boatName }); setEditingName(false); }}
                     onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                    style={{
-                      fontFamily: "'Fraunces', serif",
-                      fontSize: 22,
-                      fontWeight: 600,
-                      background: "transparent",
-                      color: COLORS.parchment,
-                      border: "none",
-                      borderBottom: `1px solid ${COLORS.brassSoft}`,
-                      outline: "none",
-                      width: "100%",
-                    }}
+                    style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, background: "transparent", color: COLORS.parchment, border: "none", borderBottom: `1px solid ${COLORS.brassSoft}`, outline: "none", width: "100%" }}
                   />
                 ) : (
-                  <button
-                    onClick={() => {
-                      setNameDraft(settings.boatName);
-                      setEditingName(true);
-                    }}
-                    className="flex items-center gap-2 truncate"
-                  >
-                    <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: COLORS.parchment }} className="truncate">
-                      {settings.boatName}
-                    </h1>
+                  <button onClick={() => { setNameDraft(settings.boatName); setEditingName(true); }} className="flex items-center gap-2 truncate">
+                    <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, color: COLORS.parchment }} className="truncate">{settings.boatName}</h1>
                     <Pencil size={12} style={{ color: COLORS.brassSoft, flexShrink: 0 }} />
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="relative flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => setShowSettingsMenu((s) => !s)}
-                className="p-2 rounded-full hover:bg-white/10"
-                style={{ color: COLORS.parchment }}
-                aria-label="Impostazioni"
+                onClick={toggleBoatStatus}
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+                style={{ background: "rgba(255,255,255,0.08)" }}
+                title="Tocca per cambiare stato"
               >
-                <Settings size={18} />
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: settings.boatStatus === "acqua" ? "#5B9C6E" : "#D9A441", display: "inline-block" }} />
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>
+                  {settings.boatStatus === "acqua" ? "In acqua" : "In secca"}
+                </span>
               </button>
-              {showSettingsMenu && (
-                <div
-                  className="absolute right-0 top-11 z-40 rounded-sm overflow-hidden"
-                  style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, minWidth: 200 }}
-                >
-                  <button
-                    onClick={() => setConfirmReset(true)}
-                    className="w-full text-left px-4 py-3 flex items-center gap-2 hover:bg-black/5"
-                    style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#C1483A" }}
-                  >
-                    <Trash2 size={14} /> Cancella tutti i dati
-                  </button>
-                </div>
-              )}
+
+              <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-1.5 rounded-full px-2 py-1" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: currentProfile?.color || COLORS.brassSoft, display: "inline-block" }} />
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>{currentProfile?.name || "Chi sei?"}</span>
+              </button>
+
+              <div className="relative">
+                <button onClick={() => setShowSettingsMenu((s) => !s)} className="p-2 rounded-full hover:bg-white/10" style={{ color: COLORS.parchment }} aria-label="Impostazioni">
+                  <Settings size={18} />
+                </button>
+                {showSettingsMenu && (
+                  <div className="absolute right-0 top-11 z-40 rounded-sm overflow-hidden" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, minWidth: 200 }}>
+                    <button onClick={() => setConfirmReset(true)} className="w-full text-left px-4 py-3 flex items-center gap-2 hover:bg-black/5" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#C1483A" }}>
+                      <Trash2 size={14} /> Cancella tutti i dati
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* View toggle */}
-          <div className="flex gap-1 mt-5 p-1 rounded-md w-fit" style={{ background: "rgba(255,255,255,0.08)" }}>
-            <button
-              onClick={() => setView("calendar")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                background: view === "calendar" ? COLORS.brass : "transparent",
-                color: view === "calendar" ? "#fff" : COLORS.parchment,
-              }}
-            >
-              <CalendarIcon size={14} /> Calendario
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                background: view === "list" ? COLORS.brass : "transparent",
-                color: view === "list" ? "#fff" : COLORS.parchment,
-              }}
-            >
-              <ListIcon size={14} /> Registro
-            </button>
-            <button
-              onClick={() => setView("tasks")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                background: view === "tasks" ? COLORS.brass : "transparent",
-                color: view === "tasks" ? "#fff" : COLORS.parchment,
-              }}
-            >
-              <ListChecks size={14} /> Lista annuale
-            </button>
+          <div className="flex gap-1 mt-5 p-1 rounded-md w-fit flex-wrap" style={{ background: "rgba(255,255,255,0.08)" }}>
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setView(t.id)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded"
+                style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, background: view === t.id ? COLORS.brass : "transparent", color: view === t.id ? "#fff" : COLORS.parchment }}
+              >
+                <t.icon size={14} /> {t.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Body */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
         {loading ? (
-          <div style={{ color: COLORS.navy }}>
-            <div className="flex flex-col items-center justify-center gap-3 py-24">
-              <Loader2 className="animate-spin" size={26} style={{ color: COLORS.brass }} />
-              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.inkSoft }}>Apro il diario di bordo…</p>
-            </div>
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
+            <Loader2 className="animate-spin" size={26} style={{ color: COLORS.brass }} />
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.inkSoft }}>Apro il diario di bordo…</p>
           </div>
         ) : (
           <>
-            {/* Search + filters */}
-            {view !== "tasks" && (
+            {(view === "calendar" || view === "list") && (
               <div className="flex flex-col gap-3 mb-5">
                 <div className="relative">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.inkSoft }} />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Cerca nelle voci del diario…"
-                    style={{
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: 13.5,
-                      width: "100%",
-                      padding: "9px 12px 9px 32px",
-                      borderRadius: 5,
-                      border: `1px solid ${COLORS.line}`,
-                      background: "#fff",
-                      color: COLORS.ink,
-                    }}
-                  />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca nelle voci del diario…" style={{ ...S.input, padding: "9px 12px 9px 32px" }} />
                 </div>
-
                 <div className="flex flex-wrap gap-1.5 items-center">
-                  <button
-                    onClick={toggleAll}
-                    style={{
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      color: COLORS.navy,
-                      textDecoration: "underline",
-                      textUnderlineOffset: 2,
-                      padding: "4px 4px",
-                    }}
-                  >
+                  <button onClick={toggleAll} style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 700, color: COLORS.navy, textDecoration: "underline", textUnderlineOffset: 2 }}>
                     {allOn ? "Deseleziona tutte" : "Seleziona tutte"}
                   </button>
                   {CATEGORIES.map((c) => (
@@ -1167,76 +1214,60 @@ export default function DiarioDiBordo() {
               </div>
             )}
 
-            {view === "tasks" ? (
-              <TaskList tasks={tasks} onAdd={handleAddTask} onToggle={handleToggleTask} onDelete={handleDeleteTask} />
-            ) : view === "calendar" ? (
+            {view === "calendar" && (
               <>
-                <CalendarView
-                  month={month}
-                  setMonth={setMonth}
-                  entries={filteredEntries}
-                  onSelectDay={(iso) => setSelectedDay(iso === selectedDay ? null : iso)}
-                  selectedISO={selectedDay}
-                />
-                {selectedDay && (
-                  <DayPanel
-                    iso={selectedDay}
-                    entries={filteredEntries}
-                    onNew={(iso) => {
-                      pendingDate.current = iso;
-                      setEditingEntry(null);
-                      setShowForm(true);
-                    }}
-                    onEdit={openEdit}
-                    onClose={() => setSelectedDay(null)}
-                  />
-                )}
-                {!selectedDay && (
-                  <button
-                    onClick={() => {
-                      pendingDate.current = todayISO();
-                      setEditingEntry(null);
-                      setShowForm(true);
-                    }}
-                    className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-sm"
-                    style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#fff", background: COLORS.brass }}
-                  >
+                <CalendarView month={month} setMonth={setMonth} entries={filteredEntries} onSelectDay={(iso) => setSelectedDay(iso === selectedDay ? null : iso)} selectedISO={selectedDay} />
+                {selectedDay ? (
+                  <DayPanel iso={selectedDay} entries={filteredEntries} onNew={openNewAt} onEdit={openEdit} onClose={() => setSelectedDay(null)} />
+                ) : (
+                  <button onClick={() => openNewAt(todayISO())} className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#fff", background: COLORS.brass }}>
                     <Plus size={16} /> Nuova voce
                   </button>
                 )}
               </>
-            ) : (
+            )}
+
+            {view === "list" && (
               <div>
-                <button
-                  onClick={() => {
-                    pendingDate.current = todayISO();
-                    setEditingEntry(null);
-                    setShowForm(true);
-                  }}
-                  className="mb-6 w-full flex items-center justify-center gap-2 py-3 rounded-sm"
-                  style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#fff", background: COLORS.brass }}
-                >
+                <button onClick={() => openNewAt(todayISO())} className="mb-6 w-full flex items-center justify-center gap-2 py-3 rounded-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#fff", background: COLORS.brass }}>
                   <Plus size={16} /> Nuova voce
                 </button>
-
                 {filteredEntries.length === 0 ? (
                   <div className="flex flex-col items-center text-center gap-2 py-16" style={{ color: COLORS.inkSoft }}>
                     <ImageOff size={26} style={{ opacity: 0.5 }} />
                     <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>
-                      {entries.length === 0
-                        ? "Il diario è ancora vuoto. Registra la prima voce di bordo."
-                        : "Nessuna voce corrisponde ai filtri o alla ricerca."}
+                      {entries.length === 0 ? "Il diario è ancora vuoto. Registra la prima voce di bordo." : "Nessuna voce corrisponde ai filtri o alla ricerca."}
                     </p>
                   </div>
                 ) : (
-                  <div>
-                    {filteredEntries.map((e) => (
-                      <EntryCard key={e.id} entry={e} onEdit={openEdit} />
-                    ))}
-                  </div>
+                  <div>{filteredEntries.map((e) => <EntryCard key={e.id} entry={e} onEdit={openEdit} />)}</div>
                 )}
               </div>
             )}
+
+            {view === "tasks" && (
+              <div>
+                <div className="flex gap-1 mb-5 p-1 rounded-md w-fit" style={{ background: "rgba(22,50,74,0.06)" }}>
+                  <button onClick={() => setTaskTab("year")} className="px-3.5 py-1.5 rounded" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, background: taskTab === "year" ? COLORS.navy : "transparent", color: taskTab === "year" ? "#fff" : COLORS.navy }}>
+                    Quest'anno
+                  </button>
+                  <button onClick={() => setTaskTab("season")} className="px-3.5 py-1.5 rounded" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, background: taskTab === "season" ? COLORS.navy : "transparent", color: taskTab === "season" ? "#fff" : COLORS.navy }}>
+                    Stagione successiva
+                  </button>
+                </div>
+                {taskTab === "year" ? (
+                  <TaskList tasks={tasks} {...yearHandlers} placeholder="Es. Revisione motore, cambio zinchi…" />
+                ) : (
+                  <TaskList tasks={seasonTasks} {...seasonHandlers} placeholder="Es. Rifare l'antivegetativa, cambiare le cime…" />
+                )}
+              </div>
+            )}
+
+            {view === "rigging" && (
+              <RiggingView items={riggingItems} onSaveItem={saveRiggingItem} onDeleteExtra={deleteExtraRigging} onAddExtra={saveRiggingItem} />
+            )}
+
+            {view === "manuals" && <ManualsView manuals={manuals} onUpload={uploadManual} onDelete={deleteManual} />}
 
             <p className="text-center mt-6" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: COLORS.inkSoft, opacity: 0.7 }}>
               {entries.length} {entries.length === 1 ? "voce registrata" : "voci registrate"} · dati condivisi tra chi usa questo sito
@@ -1248,14 +1279,15 @@ export default function DiarioDiBordo() {
 
       {showForm && (
         <EntryForm
-          initial={editingEntry || (pendingDate.current ? { date: pendingDate.current } : null)}
+          initial={editingEntry || { date: pendingDate.current }}
           onSave={handleSave}
           onDelete={handleDelete}
-          onClose={() => {
-            setShowForm(false);
-            setEditingEntry(null);
-          }}
+          onClose={() => { setShowForm(false); setEditingEntry(null); }}
         />
+      )}
+
+      {showProfileModal && (
+        <ProfileModal profiles={profiles} currentId={profileId} onChoose={chooseProfile} onRename={renameProfile} onClose={() => setShowProfileModal(false)} canClose={!!profileId} />
       )}
 
       {confirmReset && (
@@ -1263,23 +1295,11 @@ export default function DiarioDiBordo() {
           <div className="w-full max-w-sm rounded-sm p-5" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
             <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: COLORS.ink }}>Cancellare tutti i dati?</h3>
             <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.inkSoft, marginTop: 8 }}>
-              Tutte le voci del diario, le foto e la lista annuale verranno eliminate per chiunque usi questo sito. L'operazione non è reversibile.
+              Voci, foto, liste, cime/catena e manuali verranno eliminati per chiunque usi questo sito. L'operazione non è reversibile.
             </p>
             <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setConfirmReset(false)}
-                className="px-4 py-2 rounded text-sm font-semibold"
-                style={{ fontFamily: "'Inter', sans-serif", color: COLORS.inkSoft }}
-              >
-                Annulla
-              </button>
-              <button
-                onClick={doReset}
-                className="px-4 py-2 rounded text-sm font-semibold"
-                style={{ fontFamily: "'Inter', sans-serif", color: "#fff", background: "#C1483A" }}
-              >
-                Cancella
-              </button>
+              <button onClick={() => setConfirmReset(false)} className="px-4 py-2 rounded text-sm font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: COLORS.inkSoft }}>Annulla</button>
+              <button onClick={doReset} className="px-4 py-2 rounded text-sm font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: "#fff", background: "#C1483A" }}>Cancella</button>
             </div>
           </div>
         </div>
