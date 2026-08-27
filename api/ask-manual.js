@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Metodo non consentito" });
     return;
+  }
 
   const { question, manuals } = req.body || {};
   if (!question || !Array.isArray(manuals) || manuals.length === 0) {
@@ -46,6 +47,7 @@ DOCUMENTI DISPONIBILI:
 ${context}
 
 DOMANDA DELLA FAMIGLIA: ${question}`;
+
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
