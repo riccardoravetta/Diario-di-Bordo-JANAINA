@@ -648,11 +648,11 @@ function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
                       {t.done ? <CheckSquare size={18} /> : <Square size={18} />}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <span className="block truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.ink, fontWeight: 600, textDecoration: t.done ? "line-through" : "none" }}>
+                      <span className="block" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.ink, fontWeight: 600, textDecoration: t.done ? "line-through" : "none", wordBreak: "break-word" }}>
                         {t.title || t.text}
                       </span>
                       {t.description && (
-                        <p className="line-clamp-2" style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.inkSoft, marginTop: 2, lineHeight: 1.4 }}>
+                        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.inkSoft, marginTop: 2, lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                           {t.description}
                         </p>
                       )}
