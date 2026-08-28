@@ -114,14 +114,34 @@ const DEFAULT_PROFILES = [
 ];
 
 // Punti dello schema barca (vista dall'alto) dove si agganciano cime e catena.
+const RIGGING_CATEGORIES = [
+  { id: "drizze", label: "Drizze" },
+  { id: "scotte", label: "Scotte" },
+  { id: "terzaroli", label: "Terzaroli" },
+  { id: "dormeggio", label: "Cime di dormeggio" },
+];
 const MARKERS = [
-  { id: "ancora", label: "Catena / cima ancora", x: 150, y: 20 },
-  { id: "prua", label: "Cima di prua", x: 150, y: 55 },
-  { id: "traverso_sx", label: "Traverso sinistra", x: 62, y: 250 },
-  { id: "traverso_dx", label: "Traverso dritta", x: 238, y: 250 },
-  { id: "spring_sx", label: "Spring sinistra", x: 100, y: 375 },
-  { id: "spring_dx", label: "Spring dritta", x: 200, y: 375 },
-  { id: "poppa", label: "Cima di poppa", x: 150, y: 465 },
+  { id: "drizza_randa", label: "Drizza randa", category: "drizze" },
+  { id: "drizza_genoa", label: "Drizza genoa / fiocco", category: "drizze" },
+  { id: "scotta_genoa_sx", label: "Scotta genoa sinistra", category: "scotte" },
+  { id: "scotta_genoa_dx", label: "Scotta genoa dritta", category: "scotte" },
+  { id: "scotta_randa", label: "Scotta randa", category: "scotte" },
+  { id: "terzarolo_1", label: "Terzarolo 1", category: "terzaroli" },
+  { id: "terzarolo_2", label: "Terzarolo 2", category: "terzaroli" },
+  { id: "ancora", label: "Catena / cima ancora", category: "dormeggio" },
+  { id: "prua", label: "Cima di prua", category: "dormeggio" },
+  { id: "traverso_sx", label: "Traverso sinistra", category: "dormeggio" },
+  { id: "traverso_dx", label: "Traverso dritta", category: "dormeggio" },
+  { id: "spring_sx", label: "Spring sinistra", category: "dormeggio" },
+  { id: "spring_dx", label: "Spring dritta", category: "dormeggio" },
+  { id: "poppa", label: "Cima di poppa", category: "dormeggio" },
+];
+// Solo i punti singoli (non in coppia sinistra/dritta, e solo cime di dormeggio) hanno
+// senso su una vista di fianco: le altre restano nell'elenco, senza pallino sulla sagoma.
+const SIDE_VIEW_POINTS = [
+  { id: "ancora", x: 293, y: 48 },
+  { id: "prua", x: 258, y: 60 },
+  { id: "poppa", x: 27, y: 64 },
 ];
 
 const GIORNI = ["L", "M", "M", "G", "V", "S", "D"];
@@ -690,28 +710,61 @@ function RiggingCard({ marker, item, selected, onSave }) {
 
 function RiggingDiagram({ selected, onSelect }) {
   return (
-    <svg viewBox="0 0 300 490" style={{ width: "100%", maxWidth: 220, margin: "0 auto", display: "block" }}>
+    <svg viewBox="0 0 320 175" style={{ width: "100%", maxWidth: 280, margin: "0 auto", display: "block" }}>
+      {/* Scafo, vista di fianco: prua a destra, poppa a sinistra */}
       <path
-        d="M150,8 C205,8 248,95 252,185 L252,335 C252,415 210,468 150,486 C90,468 48,415 48,335 L48,185 C52,95 95,8 150,8 Z"
+        d="M27,58
+           C 22,58 18,64 18,74
+           C 18,84 20,90 25,94
+           C 45,100 90,104 140,105
+           C 175,106 230,103 262,96
+           C 278,88 292,72 300,52
+           C 304,44 300,40 293,40
+           C 250,42 130,48 60,52
+           C 45,53 32,55 27,58 Z"
         fill={COLORS.parchmentCard}
         stroke={COLORS.navy}
         strokeWidth="2"
       />
-      <line x1="150" y1="55" x2="150" y2="460" stroke={COLORS.line} strokeWidth="1" strokeDasharray="4 4" />
+      {/* Chiglia */}
+      <path d="M150,104 C155,104 172,112 176,138 C178,150 172,156 165,156 C158,156 152,148 150,132 C148,118 146,106 150,104 Z" fill="#3F6B8C" stroke={COLORS.navy} strokeWidth="1.2" />
+      {/* Timone */}
+      <path d="M36,96 C33,96 30,100 30,108 C30,116 33,120 37,120 L40,120 L40,97 Z" fill="#3F6B8C" stroke={COLORS.navy} strokeWidth="1" />
+      {/* Albero */}
+      <line x1="176" y1="98" x2="176" y2="14" stroke={COLORS.ink} strokeWidth="2" />
+      {/* Boma */}
+      <line x1="176" y1="96" x2="118" y2="96" stroke={COLORS.ink} strokeWidth="1.6" />
+      {/* Strallo di prua (verso il punto ancora/prua) */}
+      <line x1="176" y1="14" x2="290" y2="50" stroke={COLORS.inkSoft} strokeWidth="1" />
+      {/* Strallo di poppa */}
+      <line x1="176" y1="14" x2="33" y2="60" stroke={COLORS.inkSoft} strokeWidth="1" />
+      <line x1="18" y1="112" x2="302" y2="112" stroke={COLORS.line} strokeWidth="1" strokeDasharray="4 4" />
+
       <defs>
         <marker id="rigArrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
           <path d="M0,0 L8,4 L0,8 Z" fill={COLORS.brass} />
         </marker>
       </defs>
-      {MARKERS.map((m) => {
-        const isSel = selected === m.id;
-        const leftSide = m.x < 150;
+
+      {SIDE_VIEW_POINTS.map((pt) => {
+        const isSel = selected === pt.id;
+        const label = MARKERS.find((m) => m.id === pt.id)?.label || "";
+        const onRight = pt.x > 160;
+        const boxW = 92;
+        const boxX = onRight ? pt.x - boxW - 10 : pt.x + 10;
+        const boxY = 128;
         return (
-          <g key={m.id} onClick={() => onSelect(m.id)} style={{ cursor: "pointer" }}>
+          <g key={pt.id} onClick={() => onSelect(pt.id)} style={{ cursor: "pointer" }}>
             {isSel && (
-              <line x1={m.x} y1={m.y} x2={m.x + (leftSide ? -34 : 34)} y2={m.y - 18} stroke={COLORS.brass} strokeWidth="1.5" markerEnd="url(#rigArrow)" />
+              <>
+                <line x1={pt.x} y1={pt.y} x2={onRight ? boxX + boxW : boxX} y2={boxY + 8} stroke={COLORS.brass} strokeWidth="1.3" markerEnd="url(#rigArrow)" />
+                <rect x={boxX} y={boxY} width={boxW} height="20" rx="3" fill={COLORS.navy} opacity="0.95" />
+                <text x={boxX + 6} y={boxY + 14} fontSize="8.5" fontFamily="'Inter', sans-serif" fontWeight="700" fill="#F3ECDA">
+                  {label.length > 20 ? label.slice(0, 20) + "…" : label}
+                </text>
+              </>
             )}
-            <circle cx={m.x} cy={m.y} r={isSel ? 9 : 6} fill={isSel ? COLORS.brass : COLORS.navy} stroke="#fff" strokeWidth="1.5" />
+            <circle cx={pt.x} cy={pt.y} r={isSel ? 8 : 6} fill={isSel ? COLORS.brass : COLORS.navy} stroke="#fff" strokeWidth="1.5" />
           </g>
         );
       })}
@@ -730,14 +783,20 @@ function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
         Tocca un punto sullo schema per aprire la scheda di quella cima o della catena.
       </p>
       <RiggingDiagram selected={selected} onSelect={(id) => setSelected(id === selected ? null : id)} />
-      <div className="flex flex-col gap-3 mt-5">
-        {MARKERS.map((m) => (
-          <RiggingCard key={m.id} marker={m} item={items.find((it) => it.id === m.id)} selected={selected === m.id} onSave={onSaveItem} />
-        ))}
-      </div>
+
+      {RIGGING_CATEGORIES.map((cat) => (
+        <div key={cat.id} className="mt-6">
+          <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: COLORS.navy, marginBottom: 8 }}>{cat.label}</h3>
+          <div className="flex flex-col gap-3">
+            {MARKERS.filter((m) => m.category === cat.id).map((m) => (
+              <RiggingCard key={m.id} marker={m} item={items.find((it) => it.id === m.id)} selected={selected === m.id} onSave={onSaveItem} />
+            ))}
+          </div>
+        </div>
+      ))}
 
       <div className="mt-6">
-        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: COLORS.navy, marginBottom: 8 }}>Altri elementi</h3>
+        <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: COLORS.navy, marginBottom: 8 }}>Altre cime</h3>
         <div className="flex flex-col gap-1.5 mb-3">
           {extras.map((it) => (
             <div key={it.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
