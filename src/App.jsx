@@ -129,6 +129,8 @@ const MARKERS = [
   { id: "scotta_genoa_sx", label: "Scotta genoa sinistra", category: "scotte" },
   { id: "scotta_genoa_dx", label: "Scotta genoa dritta", category: "scotte" },
   { id: "scotta_randa", label: "Scotta randa", category: "scotte" },
+  { id: "scotta_trasto_randa", label: "Scotta trasto di randa", category: "scotte" },
+  { id: "vang", label: "Vang", category: "scotte" },
   { id: "terzarolo_1", label: "Terzarolo 1", category: "terzaroli" },
   { id: "terzarolo_2", label: "Terzarolo 2", category: "terzaroli" },
   { id: "poppa_1", label: "Cima di poppa 1", category: "dormeggio" },
@@ -664,16 +666,42 @@ function RiggingCard({ marker, item, isOpen, onToggle, onSave }) {
   const [changedDate, setChangedDate] = useState(item?.changedDate ?? "");
   const [ropeType, setRopeType] = useState(item?.ropeType ?? "");
   const [whipped, setWhipped] = useState(item?.whipped ?? "");
+  const [color, setColor] = useState(item?.color ?? "#B8863E");
 
   const save = (overrides) =>
-    onSave({ id: marker.id, markerId: marker.id, label: marker.label, length, changedDate, ropeType, whipped, ...overrides });
+    onSave({ id: marker.id, markerId: marker.id, label: marker.label, length, changedDate, ropeType, whipped, color, ...overrides });
 
   return (
     <div className="rounded-sm overflow-hidden" style={{ background: COLORS.parchmentCard, border: `1px solid ${isOpen ? COLORS.brass : COLORS.line}` }}>
-      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left">
-        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.ink }}>{marker.label}</span>
+      <div onClick={onToggle} className="w-full flex items-center gap-2.5 px-3 py-2.5 cursor-pointer">
+        <span className="flex-1 truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.ink }}>
+          {marker.label}
+        </span>
+        <input
+          type="color"
+          value={color}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            setColor(e.target.value);
+            save({ color: e.target.value });
+          }}
+          title="Colore della cima"
+          style={{
+            width: 20,
+            height: 20,
+            padding: 0,
+            border: `1px solid ${COLORS.line}`,
+            borderRadius: "50%",
+            overflow: "hidden",
+            cursor: "pointer",
+            flexShrink: 0,
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+          }}
+        />
         <ChevronDown size={16} style={{ color: COLORS.inkSoft, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
-      </button>
+      </div>
       {isOpen && (
         <div className="px-3 pb-3 flex flex-col gap-2.5" style={{ borderTop: `1px solid ${COLORS.line}`, paddingTop: 10 }}>
           <div>
@@ -769,6 +797,7 @@ function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
         <div className="flex flex-col gap-1.5 mb-3">
           {extras.map((it) => (
             <div key={it.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
+              <span style={{ width: 12, height: 12, borderRadius: "50%", background: it.color || COLORS.brass, flexShrink: 0, border: `1px solid ${COLORS.line}` }} />
               <span className="flex-1 truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink }}>
                 {it.label} {it.length && `· ${it.length} m`} {it.ropeType && `· ${it.ropeType}`}
               </span>
@@ -783,7 +812,7 @@ function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
           <button
             onClick={() => {
               if (!extraText.trim()) return;
-              onAddExtra({ id: uid(), markerId: null, label: extraText.trim(), length: "", changedDate: "", ropeType: "", whipped: "" });
+              onAddExtra({ id: uid(), markerId: null, label: extraText.trim(), length: "", changedDate: "", ropeType: "", whipped: "", color: "#B8863E" });
               setExtraText("");
             }}
             className="flex items-center justify-center rounded-sm px-3"
