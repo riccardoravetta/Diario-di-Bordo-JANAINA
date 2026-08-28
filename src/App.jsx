@@ -23,6 +23,7 @@ import {
   Settings,
   Loader2,
   ListChecks,
+  ChevronDown,
   Square,
   CheckSquare,
   Sailboat,
@@ -118,7 +119,7 @@ const RIGGING_CATEGORIES = [
   { id: "drizze", label: "Drizze" },
   { id: "scotte", label: "Scotte" },
   { id: "terzaroli", label: "Terzaroli" },
-  { id: "dormeggio", label: "Cime di dormeggio" },
+  { id: "dormeggio", label: "Cime di ormeggio" },
 ];
 const MARKERS = [
   { id: "drizza_randa", label: "Drizza randa", category: "drizze" },
@@ -135,13 +136,6 @@ const MARKERS = [
   { id: "spring_sx", label: "Spring sinistra", category: "dormeggio" },
   { id: "spring_dx", label: "Spring dritta", category: "dormeggio" },
   { id: "poppa", label: "Cima di poppa", category: "dormeggio" },
-];
-// Solo i punti singoli (non in coppia sinistra/dritta, e solo cime di dormeggio) hanno
-// senso su una vista di fianco: le altre restano nell'elenco, senza pallino sulla sagoma.
-const SIDE_VIEW_POINTS = [
-  { id: "ancora", x: 293, y: 48 },
-  { id: "prua", x: 258, y: 60 },
-  { id: "poppa", x: 27, y: 64 },
 ];
 
 const GIORNI = ["L", "M", "M", "G", "V", "S", "D"];
@@ -666,130 +660,106 @@ function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
 /* ---------------------------------------------------------------
    Cime e catena — schema barca con marker interattivi
 --------------------------------------------------------------- */
-function RiggingCard({ marker, item, selected, onSave }) {
-  const [label, setLabel] = useState(item?.label ?? marker.label);
+function RiggingCard({ marker, item, isOpen, onToggle, onSave }) {
   const [length, setLength] = useState(item?.length ?? "");
-  const [diameter, setDiameter] = useState(item?.diameter ?? "");
-  const [material, setMaterial] = useState(item?.material ?? "");
-  const [weight, setWeight] = useState(item?.weight ?? "");
-  const [notes, setNotes] = useState(item?.notes ?? "");
-  const ref = useRef(null);
+  const [changedDate, setChangedDate] = useState(item?.changedDate ?? "");
+  const [ropeType, setRopeType] = useState(item?.ropeType ?? "");
+  const [whipped, setWhipped] = useState(item?.whipped ?? "");
 
-  useEffect(() => {
-    if (selected && ref.current) ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [selected]);
-
-  const save = () => onSave({ id: marker.id, markerId: marker.id, label, length, diameter, material, weight, notes });
+  const save = (overrides) =>
+    onSave({ id: marker.id, markerId: marker.id, label: marker.label, length, changedDate, ropeType, whipped, ...overrides });
 
   return (
-    <div ref={ref} className="rounded-sm p-3" style={{ background: COLORS.parchmentCard, border: `1px solid ${selected ? COLORS.brass : COLORS.line}`, borderWidth: selected ? 2 : 1 }}>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} onBlur={save} style={{ ...S.input, fontWeight: 600, marginBottom: 6 }} />
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label style={{ ...S.label, marginBottom: 2 }}>Lunghezza (m)</label>
-          <input value={length} onChange={(e) => setLength(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
+    <div className="rounded-sm overflow-hidden" style={{ background: COLORS.parchmentCard, border: `1px solid ${isOpen ? COLORS.brass : COLORS.line}` }}>
+      <button onClick={onToggle} className="w-full flex items-center justify-between px-3 py-2.5 text-left">
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.ink }}>{marker.label}</span>
+        <ChevronDown size={16} style={{ color: COLORS.inkSoft, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
+      </button>
+      {isOpen && (
+        <div className="px-3 pb-3 flex flex-col gap-2.5" style={{ borderTop: `1px solid ${COLORS.line}`, paddingTop: 10 }}>
+          <div>
+            <label style={{ ...S.label, marginBottom: 2 }}>Lunghezza (m)</label>
+            <input value={length} onChange={(e) => setLength(e.target.value)} onBlur={() => save({ length })} style={S.input} inputMode="decimal" />
+          </div>
+          <div>
+            <label style={{ ...S.label, marginBottom: 2 }}>Quando è stata cambiata</label>
+            <input
+              type="date"
+              value={changedDate}
+              onChange={(e) => {
+                setChangedDate(e.target.value);
+                save({ changedDate: e.target.value });
+              }}
+              style={S.input}
+            />
+          </div>
+          <div>
+            <label style={{ ...S.label, marginBottom: 2 }}>Tipo di cima</label>
+            <input value={ropeType} onChange={(e) => setRopeType(e.target.value)} onBlur={() => save({ ropeType })} style={S.input} placeholder="Es. dyneema, poliestere, catena calibrata" />
+          </div>
+          <div>
+            <label style={{ ...S.label, marginBottom: 2 }}>Piombatura</label>
+            <div className="flex gap-1.5">
+              {["Sì", "No"].map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => {
+                    setWhipped(opt);
+                    save({ whipped: opt });
+                  }}
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: "5px 14px",
+                    borderRadius: 4,
+                    border: `1px solid ${whipped === opt ? COLORS.brass : COLORS.line}`,
+                    background: whipped === opt ? COLORS.brass : "transparent",
+                    color: whipped === opt ? "#fff" : COLORS.inkSoft,
+                  }}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        <div>
-          <label style={{ ...S.label, marginBottom: 2 }}>Diametro (mm)</label>
-          <input value={diameter} onChange={(e) => setDiameter(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
-        </div>
-        <div>
-          <label style={{ ...S.label, marginBottom: 2 }}>Materiale</label>
-          <input value={material} onChange={(e) => setMaterial(e.target.value)} onBlur={save} style={S.input} placeholder="Es. dyneema, catena calibrata" />
-        </div>
-        <div>
-          <label style={{ ...S.label, marginBottom: 2 }}>Peso (kg, se catena)</label>
-          <input value={weight} onChange={(e) => setWeight(e.target.value)} onBlur={save} style={S.input} inputMode="decimal" />
-        </div>
-      </div>
-      <label style={{ ...S.label, marginTop: 6, marginBottom: 2 }}>Note</label>
-      <input value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={save} style={S.input} />
+      )}
     </div>
   );
 }
 
-function RiggingDiagram({ selected, onSelect }) {
-  return (
-    <svg viewBox="0 0 320 175" style={{ width: "100%", maxWidth: 280, margin: "0 auto", display: "block" }}>
-      {/* Scafo, vista di fianco: prua a destra, poppa a sinistra */}
-      <path
-        d="M27,58
-           C 22,58 18,64 18,74
-           C 18,84 20,90 25,94
-           C 45,100 90,104 140,105
-           C 175,106 230,103 262,96
-           C 278,88 292,72 300,52
-           C 304,44 300,40 293,40
-           C 250,42 130,48 60,52
-           C 45,53 32,55 27,58 Z"
-        fill={COLORS.parchmentCard}
-        stroke={COLORS.navy}
-        strokeWidth="2"
-      />
-      {/* Chiglia */}
-      <path d="M150,104 C155,104 172,112 176,138 C178,150 172,156 165,156 C158,156 152,148 150,132 C148,118 146,106 150,104 Z" fill="#3F6B8C" stroke={COLORS.navy} strokeWidth="1.2" />
-      {/* Timone */}
-      <path d="M36,96 C33,96 30,100 30,108 C30,116 33,120 37,120 L40,120 L40,97 Z" fill="#3F6B8C" stroke={COLORS.navy} strokeWidth="1" />
-      {/* Albero */}
-      <line x1="176" y1="98" x2="176" y2="14" stroke={COLORS.ink} strokeWidth="2" />
-      {/* Boma */}
-      <line x1="176" y1="96" x2="118" y2="96" stroke={COLORS.ink} strokeWidth="1.6" />
-      {/* Strallo di prua (verso il punto ancora/prua) */}
-      <line x1="176" y1="14" x2="290" y2="50" stroke={COLORS.inkSoft} strokeWidth="1" />
-      {/* Strallo di poppa */}
-      <line x1="176" y1="14" x2="33" y2="60" stroke={COLORS.inkSoft} strokeWidth="1" />
-      <line x1="18" y1="112" x2="302" y2="112" stroke={COLORS.line} strokeWidth="1" strokeDasharray="4 4" />
-
-      <defs>
-        <marker id="rigArrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill={COLORS.brass} />
-        </marker>
-      </defs>
-
-      {SIDE_VIEW_POINTS.map((pt) => {
-        const isSel = selected === pt.id;
-        const label = MARKERS.find((m) => m.id === pt.id)?.label || "";
-        const onRight = pt.x > 160;
-        const boxW = 92;
-        const boxX = onRight ? pt.x - boxW - 10 : pt.x + 10;
-        const boxY = 128;
-        return (
-          <g key={pt.id} onClick={() => onSelect(pt.id)} style={{ cursor: "pointer" }}>
-            {isSel && (
-              <>
-                <line x1={pt.x} y1={pt.y} x2={onRight ? boxX + boxW : boxX} y2={boxY + 8} stroke={COLORS.brass} strokeWidth="1.3" markerEnd="url(#rigArrow)" />
-                <rect x={boxX} y={boxY} width={boxW} height="20" rx="3" fill={COLORS.navy} opacity="0.95" />
-                <text x={boxX + 6} y={boxY + 14} fontSize="8.5" fontFamily="'Inter', sans-serif" fontWeight="700" fill="#F3ECDA">
-                  {label.length > 20 ? label.slice(0, 20) + "…" : label}
-                </text>
-              </>
-            )}
-            <circle cx={pt.x} cy={pt.y} r={isSel ? 8 : 6} fill={isSel ? COLORS.brass : COLORS.navy} stroke="#fff" strokeWidth="1.5" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
-  const [selected, setSelected] = useState(null);
+  const [openId, setOpenId] = useState(null);
   const [extraText, setExtraText] = useState("");
   const extras = items.filter((it) => !it.markerId);
 
   return (
     <div>
-      <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.inkSoft, marginBottom: 12 }}>
-        Tocca un punto sullo schema per aprire la scheda di quella cima o della catena.
+      <img
+        src="/schema-cime.png"
+        alt="Schema cime e catena della barca"
+        className="w-full rounded-sm mb-2"
+        style={{ border: `1px solid ${COLORS.line}` }}
+      />
+      <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 12 }}>
+        Tocca il nome di una voce qui sotto per aprire i dettagli.
       </p>
-      <RiggingDiagram selected={selected} onSelect={(id) => setSelected(id === selected ? null : id)} />
 
       {RIGGING_CATEGORIES.map((cat) => (
         <div key={cat.id} className="mt-6">
           <h3 style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: COLORS.navy, marginBottom: 8 }}>{cat.label}</h3>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {MARKERS.filter((m) => m.category === cat.id).map((m) => (
-              <RiggingCard key={m.id} marker={m} item={items.find((it) => it.id === m.id)} selected={selected === m.id} onSave={onSaveItem} />
+              <RiggingCard
+                key={m.id}
+                marker={m}
+                item={items.find((it) => it.id === m.id)}
+                isOpen={openId === m.id}
+                onToggle={() => setOpenId(openId === m.id ? null : m.id)}
+                onSave={onSaveItem}
+              />
             ))}
           </div>
         </div>
@@ -801,7 +771,7 @@ function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
           {extras.map((it) => (
             <div key={it.id} className="flex items-center gap-2 rounded-sm px-3 py-2" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
               <span className="flex-1 truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.ink }}>
-                {it.label} {it.length && `· ${it.length} m`} {it.material && `· ${it.material}`}
+                {it.label} {it.length && `· ${it.length} m`} {it.ropeType && `· ${it.ropeType}`}
               </span>
               <button onClick={() => onDeleteExtra(it.id)} style={{ color: COLORS.inkSoft }}>
                 <X size={14} />
@@ -810,11 +780,11 @@ function RiggingView({ items, onSaveItem, onDeleteExtra, onAddExtra }) {
           ))}
         </div>
         <div className="flex gap-2">
-          <input value={extraText} onChange={(e) => setExtraText(e.target.value)} placeholder="Es. cima di rimorchio, drizza randa…" style={{ ...S.input, flex: 1 }} />
+          <input value={extraText} onChange={(e) => setExtraText(e.target.value)} placeholder="Es. cima di rimorchio…" style={{ ...S.input, flex: 1 }} />
           <button
             onClick={() => {
               if (!extraText.trim()) return;
-              onAddExtra({ id: uid(), markerId: null, label: extraText.trim(), length: "", diameter: "", material: "", weight: "", notes: "" });
+              onAddExtra({ id: uid(), markerId: null, label: extraText.trim(), length: "", changedDate: "", ropeType: "", whipped: "" });
               setExtraText("");
             }}
             className="flex items-center justify-center rounded-sm px-3"
