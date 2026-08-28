@@ -114,7 +114,7 @@ const DEFAULT_PROFILES = [
   { id: "p4", name: "Membro 4", color: "#C1483A" },
 ];
 
-// Punti dello schema barca (vista dall'alto) dove si agganciano cime e catena.
+// Voci di cime e catena, raggruppate per categoria (drizze, scotte, terzaroli, cime di ormeggio).
 const RIGGING_CATEGORIES = [
   { id: "drizze", label: "Drizze" },
   { id: "scotte", label: "Scotte" },
@@ -124,18 +124,17 @@ const RIGGING_CATEGORIES = [
 const MARKERS = [
   { id: "drizza_randa", label: "Drizza randa", category: "drizze" },
   { id: "drizza_genoa", label: "Drizza genoa / fiocco", category: "drizze" },
+  { id: "drizza_gennaker", label: "Drizza gennaker", category: "drizze" },
+  { id: "amantiglio", label: "Amantiglio", category: "drizze" },
   { id: "scotta_genoa_sx", label: "Scotta genoa sinistra", category: "scotte" },
   { id: "scotta_genoa_dx", label: "Scotta genoa dritta", category: "scotte" },
   { id: "scotta_randa", label: "Scotta randa", category: "scotte" },
   { id: "terzarolo_1", label: "Terzarolo 1", category: "terzaroli" },
   { id: "terzarolo_2", label: "Terzarolo 2", category: "terzaroli" },
-  { id: "ancora", label: "Catena / cima ancora", category: "dormeggio" },
-  { id: "prua", label: "Cima di prua", category: "dormeggio" },
-  { id: "traverso_sx", label: "Traverso sinistra", category: "dormeggio" },
-  { id: "traverso_dx", label: "Traverso dritta", category: "dormeggio" },
-  { id: "spring_sx", label: "Spring sinistra", category: "dormeggio" },
-  { id: "spring_dx", label: "Spring dritta", category: "dormeggio" },
-  { id: "poppa", label: "Cima di poppa", category: "dormeggio" },
+  { id: "poppa_1", label: "Cima di poppa 1", category: "dormeggio" },
+  { id: "poppa_2", label: "Cima di poppa 2", category: "dormeggio" },
+  { id: "poppa_3", label: "Cima di poppa 3", category: "dormeggio" },
+  { id: "poppa_4", label: "Cima di poppa 4", category: "dormeggio" },
 ];
 
 const GIORNI = ["L", "M", "M", "G", "V", "S", "D"];
