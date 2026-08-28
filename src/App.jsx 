@@ -1198,23 +1198,25 @@ export default function DiarioDiBordo() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={toggleBoatStatus}
-                className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
-                style={{ background: "rgba(255,255,255,0.08)" }}
-                title="Tocca per cambiare stato"
-              >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: settings.boatStatus === "acqua" ? "#5B9C6E" : "#D9A441", display: "inline-block" }} />
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>
-                  {settings.boatStatus === "acqua" ? "In acqua" : "In secca"}
-                </span>
-              </button>
+            <div className="flex items-start gap-2 flex-shrink-0">
+              <div className="flex flex-col items-end gap-1.5">
+                <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-1.5 rounded-full px-2 py-1" style={{ background: "rgba(255,255,255,0.08)" }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: currentProfile?.color || COLORS.brassSoft, display: "inline-block" }} />
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>{currentProfile?.name || "Chi sei?"}</span>
+                </button>
 
-              <button onClick={() => setShowProfileModal(true)} className="flex items-center gap-1.5 rounded-full px-2 py-1" style={{ background: "rgba(255,255,255,0.08)" }}>
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: currentProfile?.color || COLORS.brassSoft, display: "inline-block" }} />
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>{currentProfile?.name || "Chi sei?"}</span>
-              </button>
+                <button
+                  onClick={toggleBoatStatus}
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+                  style={{ background: "rgba(255,255,255,0.08)" }}
+                  title="Tocca per cambiare stato"
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: settings.boatStatus === "acqua" ? "#5B9C6E" : "#D9A441", display: "inline-block" }} />
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.parchment }}>
+                    {settings.boatStatus === "acqua" ? "In acqua" : "In secca"}
+                  </span>
+                </button>
+              </div>
 
               <div className="relative">
                 <button onClick={() => setShowSettingsMenu((s) => !s)} className="p-2 rounded-full hover:bg-white/10" style={{ color: COLORS.parchment }} aria-label="Impostazioni">
