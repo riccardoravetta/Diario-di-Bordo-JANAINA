@@ -572,14 +572,16 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
    Lista (annuale / stagione successiva) — riusabile
 --------------------------------------------------------------- */
 function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
-  const [text, setText] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("alta");
 
   const add = () => {
-    const t = text.trim();
+    const t = title.trim();
     if (!t) return;
-    onAdd({ id: uid(), text: t, priority, done: false, createdAt: new Date().toISOString() });
-    setText("");
+    onAdd({ id: uid(), title: t, description: description.trim(), priority, done: false, createdAt: new Date().toISOString() });
+    setTitle("");
+    setDescription("");
   };
 
   const groups = PRIORITIES.map((p) => ({
@@ -590,29 +592,35 @@ function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
   return (
     <div>
       <div className="rounded-sm p-4 mb-6" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
-        <label style={S.label}>Aggiungi cosa da fare</label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder={placeholder} style={{ ...S.input, flex: 1 }} />
-          <div className="flex gap-1.5">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPriority(p.id)}
-                style={{
-                  fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, padding: "6px 10px", borderRadius: 4,
-                  border: `1px solid ${priority === p.id ? p.color : COLORS.line}`,
-                  background: priority === p.id ? p.color : "transparent",
-                  color: priority === p.id ? "#fff" : COLORS.inkSoft,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {p.label.replace("Priorità ", "")}
-              </button>
-            ))}
-            <button onClick={add} className="flex items-center justify-center rounded-sm px-3" style={{ background: COLORS.brass, color: "#fff" }} aria-label="Aggiungi">
-              <Plus size={16} />
+        <label style={S.label}>Titolo</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder={placeholder} style={{ ...S.input, marginBottom: 8 }} />
+        <label style={S.label}>Descrizione (opzionale)</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Dettagli, ricambi da prendere, contatti…"
+          style={{ ...S.input, resize: "vertical", marginBottom: 10 }}
+        />
+        <div className="flex gap-1.5 flex-wrap">
+          {PRIORITIES.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPriority(p.id)}
+              style={{
+                fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, padding: "6px 10px", borderRadius: 4,
+                border: `1px solid ${priority === p.id ? p.color : COLORS.line}`,
+                background: priority === p.id ? p.color : "transparent",
+                color: priority === p.id ? "#fff" : COLORS.inkSoft,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {p.label.replace("Priorità ", "")}
             </button>
-          </div>
+          ))}
+          <button onClick={add} className="flex items-center justify-center rounded-sm px-3" style={{ background: COLORS.brass, color: "#fff" }} aria-label="Aggiungi">
+            <Plus size={16} />
+          </button>
         </div>
       </div>
 
@@ -635,14 +643,19 @@ function TaskList({ tasks, onAdd, onToggle, onDelete, placeholder }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 {items.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2.5 rounded-sm px-3 py-2.5" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, borderLeft: `3px solid ${prio.color}`, opacity: t.done ? 0.55 : 1 }}>
-                    <button onClick={() => onToggle(t.id)} className="flex-shrink-0" style={{ color: t.done ? prio.color : COLORS.inkSoft }} aria-label="Segna come fatto">
+                  <div key={t.id} className="flex items-start gap-2.5 rounded-sm px-3 py-2.5" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}`, borderLeft: `3px solid ${prio.color}`, opacity: t.done ? 0.55 : 1 }}>
+                    <button onClick={() => onToggle(t.id)} className="flex-shrink-0 mt-0.5" style={{ color: t.done ? prio.color : COLORS.inkSoft }} aria-label="Segna come fatto">
                       {t.done ? <CheckSquare size={18} /> : <Square size={18} />}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <span className="block truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.ink, textDecoration: t.done ? "line-through" : "none" }}>
-                        {t.text}
+                      <span className="block truncate" style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.ink, fontWeight: 600, textDecoration: t.done ? "line-through" : "none" }}>
+                        {t.title || t.text}
                       </span>
+                      {t.description && (
+                        <p className="line-clamp-2" style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.inkSoft, marginTop: 2, lineHeight: 1.4 }}>
+                          {t.description}
+                        </p>
+                      )}
                       {t.author && <AuthorTag name={t.author} />}
                     </div>
                     <button onClick={() => onDelete(t.id)} className="flex-shrink-0 p-1" style={{ color: COLORS.inkSoft }} aria-label="Elimina">
@@ -1163,6 +1176,7 @@ export default function DiarioDiBordo() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
         .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.2); }
       `}</style>
 
