@@ -491,15 +491,19 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(15,36,54,0.55)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-lg sm:rounded-lg" style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}>
-        <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ background: COLORS.navy, color: COLORS.parchment }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[92vh] overflow-y-auto rounded-t-lg sm:rounded-lg flex flex-col"
+        style={{ background: COLORS.parchmentCard, border: `1px solid ${COLORS.line}` }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 sticky top-0 flex-shrink-0" style={{ background: COLORS.navy, color: COLORS.parchment, paddingTop: "calc(1rem + env(safe-area-inset-top))" }}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600 }}>{initial?.id ? "Modifica voce" : "Nuova voce di diario"}</h2>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-white/10">
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-5 flex flex-col gap-4">
+        <div className="p-5 flex flex-col gap-4 flex-1">
           <div>
             <label style={S.label}>Data</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={S.input} />
@@ -546,7 +550,7 @@ function EntryForm({ initial, onSave, onDelete, onClose }) {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+        <div className="flex items-center justify-between gap-3 px-5 py-4 flex-shrink-0 sticky bottom-0" style={{ borderTop: `1px solid ${COLORS.line}`, background: COLORS.parchmentCard, paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
           {initial?.id ? (
             <button onClick={() => onDelete(initial.id)} className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#C1483A", fontFamily: "'Inter', sans-serif" }}>
               <Trash2 size={15} /> Elimina
@@ -1177,10 +1181,14 @@ export default function DiarioDiBordo() {
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
         .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Evita lo zoom automatico di Safari su iPhone quando si tocca un campo di testo */
+        input, select, textarea { font-size: 16px !important; }
+        html { -webkit-text-size-adjust: 100%; overscroll-behavior-y: contain; }
+        body { overscroll-behavior-y: contain; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.2); }
       `}</style>
 
-      <div style={{ background: COLORS.navy }} className="px-4 sm:px-6 pt-6 pb-5">
+      <div style={{ background: COLORS.navy, paddingTop: "calc(1.5rem + env(safe-area-inset-top))" }} className="px-4 sm:px-6 pb-5">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
@@ -1262,7 +1270,7 @@ export default function DiarioDiBordo() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5" style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-24">
             <Loader2 className="animate-spin" size={26} style={{ color: COLORS.brass }} />
